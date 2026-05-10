@@ -20,7 +20,14 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\KamiToolKit\KamiToolKit.csproj"/>
+        <Compile Remove="KamiToolKit\**\*.cs"/>
+        <EmbeddedResource Remove="KamiToolKit\**\*"/>
+        <None Remove="KamiToolKit\**\*"/>
+        <Content Remove="KamiToolKit\**\*"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="KamiToolKit\KamiToolKit.csproj"/>
         <Content Include="Assets\icon.png">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>

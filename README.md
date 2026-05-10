@@ -1,4 +1,4 @@
-<img src="Assets/icon.png" alt="Cursor Indicator icon" width="128">
+<img src="Assets/icon.png" alt="Cutscene Transcripts icon" width="128">
 
 # Cutscene Transcripts
 
