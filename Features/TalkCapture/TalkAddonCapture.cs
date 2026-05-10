@@ -6,15 +6,9 @@ using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace CutsceneTranscripts;
 
-public sealed unsafe partial class Plugin
-{
-    /// <summary>
-    /// Samples the game's Talk addon while a cutscene is active and records new dialogue text.
-    /// </summary>
-    private void OnTalkPostUpdate(AddonEvent eventType, AddonArgs args)
-    {
-        if (args.Addon.IsNull || !args.Addon.IsVisible)
-        {
+public sealed unsafe partial class CutsceneTranscripts {
+    private void OnTalkPostUpdate(AddonEvent eventType, AddonArgs args) {
+        if (args.Addon.IsNull || !args.Addon.IsVisible) {
             talkWindowBounds = null;
             return;
         }
@@ -30,31 +24,21 @@ public sealed unsafe partial class Plugin
         CaptureTalkAddon(addon);
     }
 
-    /// <summary>
-    /// Clears transient Talk addon state when the addon is destroyed.
-    /// </summary>
-    private void OnTalkFinalize(AddonEvent eventType, AddonArgs args)
-    {
+    private void OnTalkFinalize(AddonEvent eventType, AddonArgs args) {
         lastObservedTalkKey = null;
         talkWindowBounds = null;
     }
 
-    /// <summary>
-    /// Stores the visible Talk window bounds so the transcript button can anchor to the game dialogue box.
-    /// </summary>
-    private void UpdateTalkWindowBounds(AddonTalk* addon)
-    {
+    private void UpdateTalkWindowBounds(AddonTalk* addon) {
         var root = addon->RootNode;
-        if (root == null)
-        {
+        if (root == null) {
             talkWindowBounds = null;
             return;
         }
 
         var width = root->Width * root->ScaleX;
         var height = root->Height * root->ScaleY;
-        if (width <= 0 || height <= 0)
-        {
+        if (width <= 0 || height <= 0) {
             talkWindowBounds = null;
             return;
         }
@@ -63,20 +47,12 @@ public sealed unsafe partial class Plugin
         lastTalkWindowBoundsAt = DateTimeOffset.Now;
     }
 
-    /// <summary>
-    /// Returns whether a Talk window was seen recently enough to be considered visible this frame.
-    /// </summary>
-    private bool IsTalkWindowVisible()
-    {
+    private bool IsTalkWindowVisible() {
         return talkWindowBounds is not null
             && DateTimeOffset.Now - lastTalkWindowBoundsAt <= VisibleAddonGracePeriod;
     }
 
-    /// <summary>
-    /// Reads all known dialogue/speaker fields from the Talk addon and records the line if it changed.
-    /// </summary>
-    private void CaptureTalkAddon(AddonTalk* addon)
-    {
+    private void CaptureTalkAddon(AddonTalk* addon) {
         if (addon == null)
             return;
 
@@ -105,16 +81,11 @@ public sealed unsafe partial class Plugin
         AddTranscriptEntry(texts);
     }
 
-    /// <summary>
-    /// Converts captured Talk addon text candidates into one transcript entry and optional voice clip metadata.
-    /// </summary>
-    private void AddTranscriptEntry(List<string> texts)
-    {
+    private void AddTranscriptEntry(List<string> texts) {
         var body = texts.OrderByDescending(text => text.Length).First();
         string? speaker = null;
 
-        foreach (var candidate in texts)
-        {
+        foreach (var candidate in texts) {
             if (TextEquivalent(candidate, body) || candidate.Length > 80 || candidate.Contains('\n'))
                 continue;
 
@@ -141,11 +112,7 @@ public sealed unsafe partial class Plugin
         StartVoiceCaptureProbe(entries.Count - 1, voiceCandidates);
     }
 
-    /// <summary>
-    /// Records a player choice in the transcript as a line spoken by the local player.
-    /// </summary>
-    private void AddChoiceEntry(string choiceText)
-    {
+    private void AddChoiceEntry(string choiceText) {
         choiceText = CleanText(choiceText);
         if (string.IsNullOrWhiteSpace(choiceText))
             return;
@@ -162,28 +129,19 @@ public sealed unsafe partial class Plugin
         MarkTranscriptChanged();
     }
 
-    private string GetPlayerName()
-    {
-        var name = objectTable.LocalPlayer?.Name.TextValue;
+    private string GetPlayerName() {
+        var name = Services.ObjectTable.LocalPlayer?.Name.TextValue;
         return string.IsNullOrWhiteSpace(name)
             ? "Player"
             : name;
     }
 
-    /// <summary>
-    /// Keeps the in-memory transcript bounded so long cutscenes do not grow state indefinitely.
-    /// </summary>
-    private void TrimEntries()
-    {
+    private void TrimEntries() {
         while (entries.Count > MaxTranscriptEntries)
             entries.RemoveAt(0);
     }
 
-    /// <summary>
-    /// Clears the current transcript and all per-cutscene de-duplication/capture state.
-    /// </summary>
-    private void ClearTranscript()
-    {
+    internal void ClearTranscript() {
         entries.Clear();
         choiceStates.Clear();
         voiceCaptureProbes.Clear();
@@ -194,11 +152,7 @@ public sealed unsafe partial class Plugin
         MarkTranscriptChanged();
     }
 
-    /// <summary>
-    /// Assigns stable colors to speakers for the current transcript session.
-    /// </summary>
-    private Vector4 GetSpeakerColor(string speaker)
-    {
+    internal Vector4 GetSpeakerColor(string speaker) {
         if (speakerColors.TryGetValue(speaker, out var color))
             return color;
 

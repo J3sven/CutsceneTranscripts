@@ -6,31 +6,20 @@ using KamiToolKit.Nodes;
 
 namespace CutsceneTranscripts;
 
-public sealed unsafe partial class Plugin
-{
-    /// <summary>
-    /// Small native addon that exposes the transcript window from cutscene dialogue.
-    /// </summary>
-    private sealed class TranscriptOpenButtonAddon : NativeAddon
-    {
+public sealed unsafe partial class CutsceneTranscripts {
+    private sealed class TranscriptOpenButtonAddon : NativeAddon {
         public static readonly Vector2 ButtonSize = new(30f, 30f);
-        private readonly Plugin plugin;
+        private readonly CutsceneTranscripts plugin;
         private CircleButtonNode? buttonNode;
         private Vector2 requestedPosition;
         private bool requestedVisibility;
 
-        public TranscriptOpenButtonAddon(Plugin plugin)
-        {
+        public TranscriptOpenButtonAddon(CutsceneTranscripts plugin) {
             this.plugin = plugin;
         }
 
-        /// <summary>
-        /// Creates a real window component for KTK while hiding every visual chrome node.
-        /// </summary>
-        public static WindowNodeBase CreateInvisibleWindowNode()
-        {
-            var windowNode = new WindowNode
-            {
+        public static WindowNodeBase CreateInvisibleWindowNode() {
+            var windowNode = new WindowNode {
                 Size = ButtonSize,
             };
 
@@ -49,11 +38,7 @@ public sealed unsafe partial class Plugin
             return windowNode;
         }
 
-        /// <summary>
-        /// Updates visibility and screen position without closing the native addon between cutscene frames.
-        /// </summary>
-        public void SetButtonState(bool visible, Vector2 position)
-        {
+        public void SetButtonState(bool visible, Vector2 position) {
             requestedVisibility = visible;
             requestedPosition = position;
 
@@ -63,12 +48,10 @@ public sealed unsafe partial class Plugin
             ApplyButtonState();
         }
 
-        protected override void OnSetup(AtkUnitBase* addon, Span<AtkValue> atkValueSpan)
-        {
+        protected override void OnSetup(AtkUnitBase* addon, Span<AtkValue> atkValueSpan) {
             base.OnSetup(addon, atkValueSpan);
 
-            buttonNode = new CircleButtonNode
-            {
+            buttonNode = new CircleButtonNode {
                 Size = ButtonSize,
                 Icon = ButtonIcon.Document,
                 TextTooltip = "Open transcript",
@@ -79,20 +62,17 @@ public sealed unsafe partial class Plugin
             ApplyButtonState();
         }
 
-        protected override void OnUpdate(AtkUnitBase* addon)
-        {
+        protected override void OnUpdate(AtkUnitBase* addon) {
             base.OnUpdate(addon);
             ApplyButtonState();
         }
 
-        protected override void OnFinalize(AtkUnitBase* addon)
-        {
+        protected override void OnFinalize(AtkUnitBase* addon) {
             buttonNode = null;
             base.OnFinalize(addon);
         }
 
-        private void ApplyButtonState()
-        {
+        private void ApplyButtonState() {
             if (AddonId == 0 || buttonNode is null)
                 return;
 

@@ -7,21 +7,14 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace CutsceneTranscripts;
 
-public sealed unsafe partial class Plugin
-{
-    /// <summary>
-    /// Returns whether a choice addon was seen recently enough to avoid overlapping the transcript button.
-    /// </summary>
-    private bool IsChoiceAddonVisible()
-    {
+public sealed unsafe partial class CutsceneTranscripts {
+    private bool IsChoiceAddonVisible() {
         var now = DateTimeOffset.Now;
         return choiceStates.Values.Any(state => now - state.LastSeenAt <= VisibleAddonGracePeriod);
     }
 
-    private void OnChoicePostUpdate(AddonEvent eventType, AddonArgs args)
-    {
-        if (args.Addon.IsNull)
-        {
+    private void OnChoicePostUpdate(AddonEvent eventType, AddonArgs args) {
+        if (args.Addon.IsNull) {
             return;
         }
 
@@ -32,13 +25,8 @@ public sealed unsafe partial class Plugin
         CacheChoiceState(args);
     }
 
-    /// <summary>
-    /// Observes choice submission events so selected dialogue options can be added to the transcript.
-    /// </summary>
-    private void OnChoiceReceiveEvent(AddonEvent eventType, AddonArgs args)
-    {
-        if (args.Addon.IsNull)
-        {
+    private void OnChoiceReceiveEvent(AddonEvent eventType, AddonArgs args) {
+        if (args.Addon.IsNull) {
             return;
         }
 
@@ -62,16 +50,13 @@ public sealed unsafe partial class Plugin
         TryRecordChoice(state, preferEventParam: eventType == AddonEvent.PreReceiveEvent);
     }
 
-    private void OnChoiceFinalize(AddonEvent eventType, AddonArgs args)
-    {
-        if (args.Addon.IsNull)
-        {
+    private void OnChoiceFinalize(AddonEvent eventType, AddonArgs args) {
+        if (args.Addon.IsNull) {
             return;
         }
 
         var address = args.Addon.Address;
-        if (choiceStates.TryGetValue(address, out var state))
-        {
+        if (choiceStates.TryGetValue(address, out var state)) {
             if (state.SubmitSeen)
                 TryRecordChoice(state, preferEventParam: false);
         }
@@ -79,11 +64,7 @@ public sealed unsafe partial class Plugin
         choiceStates.Remove(address);
     }
 
-    /// <summary>
-    /// Limits choice capture to active or very recent cutscene flows to avoid recording ordinary menus.
-    /// </summary>
-    private bool ShouldCaptureChoice(AddonArgs args)
-    {
+    private bool ShouldCaptureChoice(AddonArgs args) {
         if (!Configuration.Enabled)
             return false;
 
@@ -97,17 +78,12 @@ public sealed unsafe partial class Plugin
             && DateTimeOffset.Now - lastCutsceneActiveAt <= TimeSpan.FromSeconds(30);
     }
 
-    /// <summary>
-    /// Stores the latest visible choice options and selection hints for one choice addon instance.
-    /// </summary>
-    private ChoiceState? CacheChoiceState(AddonArgs args, int eventParam = -1, int listItemIndex = -1, bool eventParamMayBeChoiceIndex = true)
-    {
+    private ChoiceState? CacheChoiceState(AddonArgs args, int eventParam = -1, int listItemIndex = -1, bool eventParamMayBeChoiceIndex = true) {
         if (args.Addon.IsNull)
             return null;
 
         var address = args.Addon.Address;
-        if (!choiceStates.TryGetValue(address, out var state))
-        {
+        if (!choiceStates.TryGetValue(address, out var state)) {
             state = new ChoiceState { AddonName = args.AddonName };
             choiceStates[address] = state;
         }
@@ -115,8 +91,7 @@ public sealed unsafe partial class Plugin
         state.LastSeenAt = DateTimeOffset.Now;
 
         var options = ReadChoiceOptions(args);
-        if (options.Count > 0)
-        {
+        if (options.Count > 0) {
             state.Options.Clear();
             state.Options.AddRange(options);
         }
@@ -125,28 +100,23 @@ public sealed unsafe partial class Plugin
         if (IsValidChoiceIndex(state, selectedIndex))
             state.SelectedIndex = selectedIndex;
 
-        if (eventParam >= 0)
-        {
+        if (eventParam >= 0) {
             state.LastEventParam = eventParam;
             state.LastEventParamMayBeChoiceIndex = eventParamMayBeChoiceIndex;
         }
 
-        if (IsValidChoiceIndex(state, listItemIndex))
-        {
+        if (IsValidChoiceIndex(state, listItemIndex)) {
             state.ListItemIndex = listItemIndex;
         }
-        else if (listItemIndex > 0 && IsValidChoiceIndex(state, listItemIndex - 1))
-        {
+        else if (listItemIndex > 0 && IsValidChoiceIndex(state, listItemIndex - 1)) {
             state.ListItemIndex = listItemIndex - 1;
         }
 
         return state;
     }
 
-    private static List<string> ReadChoiceOptions(AddonArgs args)
-    {
-        return args.AddonName switch
-        {
+    private static List<string> ReadChoiceOptions(AddonArgs args) {
+        return args.AddonName switch {
             "SelectString" => ReadSelectStringOptions((AddonSelectString*)args.Addon.Address),
             "SelectYesno" => ReadGenericChoiceOptions((AtkUnitBase*)args.Addon.Address, preferFinalPair: true),
             "CutSceneSelectString" => ReadCutSceneSelectStringOptions((AtkUnitBase*)args.Addon.Address),
@@ -154,20 +124,14 @@ public sealed unsafe partial class Plugin
         };
     }
 
-    private static int ReadSelectedChoiceIndex(AddonArgs args)
-    {
-        return args.AddonName switch
-        {
+    private static int ReadSelectedChoiceIndex(AddonArgs args) {
+        return args.AddonName switch {
             "SelectString" => ReadSelectStringSelectedIndex((AddonSelectString*)args.Addon.Address),
             _ => ReadGenericSelectedIndex((AtkUnitBase*)args.Addon.Address)
         };
     }
 
-    /// <summary>
-    /// Resolves the best selected choice index from event data and cached UI state, then records it once.
-    /// </summary>
-    private void TryRecordChoice(ChoiceState state, bool preferEventParam)
-    {
+    private void TryRecordChoice(ChoiceState state, bool preferEventParam) {
         if (state.Recorded)
             return;
 
@@ -180,8 +144,7 @@ public sealed unsafe partial class Plugin
         if (!preferEventParam && state.LastEventParamMayBeChoiceIndex)
             indices.Add(state.LastEventParam);
 
-        foreach (var index in indices)
-        {
+        foreach (var index in indices) {
             if (!IsValidChoiceIndex(state, index))
                 continue;
 
@@ -190,21 +153,18 @@ public sealed unsafe partial class Plugin
             return;
         }
 
-        if (state.Options.Count == 1)
-        {
+        if (state.Options.Count == 1) {
             AddChoiceEntry(state.Options[0]);
             state.Recorded = true;
             return;
         }
     }
 
-    private static bool IsValidChoiceIndex(ChoiceState state, int index)
-    {
+    private static bool IsValidChoiceIndex(ChoiceState state, int index) {
         return index >= 0 && index < state.Options.Count;
     }
 
-    private static bool IsChoiceSubmitEvent(AddonReceiveEventArgs args)
-    {
+    private static bool IsChoiceSubmitEvent(AddonReceiveEventArgs args) {
         return args.AtkEventType is AddonEventType.MouseClick
             or AddonEventType.MouseUp
             or AddonEventType.ButtonClick
@@ -215,16 +175,14 @@ public sealed unsafe partial class Plugin
             or AddonEventType.DialogueSubmit;
     }
 
-    private static bool EventParamMayBeChoiceIndex(AddonReceiveEventArgs args)
-    {
+    private static bool EventParamMayBeChoiceIndex(AddonReceiveEventArgs args) {
         return args.AtkEventType is not (AddonEventType.ListButtonPress
             or AddonEventType.ListItemClick
             or AddonEventType.ListItemDoubleClick
             or AddonEventType.ListItemSelect);
     }
 
-    private static int ReadListItemIndex(AddonReceiveEventArgs args)
-    {
+    private static int ReadListItemIndex(AddonReceiveEventArgs args) {
         if (args.AtkEventData == 0)
             return -1;
 
@@ -234,8 +192,7 @@ public sealed unsafe partial class Plugin
             : eventData->ListItemData.SelectedIndex;
     }
 
-    private static List<string> ReadSelectStringOptions(AddonSelectString* addon)
-    {
+    private static List<string> ReadSelectStringOptions(AddonSelectString* addon) {
         var options = new List<string>();
         if (addon == null || addon->PopupMenu.EntryNames == null)
             return options;
@@ -247,8 +204,7 @@ public sealed unsafe partial class Plugin
         return options;
     }
 
-    private static int ReadSelectStringSelectedIndex(AddonSelectString* addon)
-    {
+    private static int ReadSelectStringSelectedIndex(AddonSelectString* addon) {
         if (addon == null || addon->PopupMenu.List == null)
             return -1;
 
@@ -266,21 +222,18 @@ public sealed unsafe partial class Plugin
         return candidates.FirstOrDefault(index => index >= 0 && index < count, -1);
     }
 
-    private static int ReadGenericSelectedIndex(AtkUnitBase* addon)
-    {
+    private static int ReadGenericSelectedIndex(AtkUnitBase* addon) {
         if (addon == null)
             return -1;
 
         return ReadGenericSelectedIndex(addon->RootNode);
     }
 
-    private static int ReadGenericSelectedIndex(AtkResNode* node)
-    {
+    private static int ReadGenericSelectedIndex(AtkResNode* node) {
         if (node == null)
             return -1;
 
-        if (node->Type == NodeType.Component)
-        {
+        if (node->Type == NodeType.Component) {
             var list = ((AtkComponentNode*)node)->GetAsAtkComponentList();
             var selected = ReadComponentListSelectedIndex(list);
             if (selected >= 0)
@@ -288,8 +241,7 @@ public sealed unsafe partial class Plugin
         }
 
         var child = node->ChildNode;
-        while (child != null)
-        {
+        while (child != null) {
             var selected = ReadGenericSelectedIndex(child);
             if (selected >= 0)
                 return selected;
@@ -300,8 +252,7 @@ public sealed unsafe partial class Plugin
         return -1;
     }
 
-    private static int ReadComponentListSelectedIndex(AtkComponentList* list)
-    {
+    private static int ReadComponentListSelectedIndex(AtkComponentList* list) {
         if (list == null)
             return -1;
 
@@ -318,8 +269,7 @@ public sealed unsafe partial class Plugin
         return candidates.FirstOrDefault(index => index >= 0 && index < count, -1);
     }
 
-    private static List<string> ReadCutSceneSelectStringOptions(AtkUnitBase* addon)
-    {
+    private static List<string> ReadCutSceneSelectStringOptions(AtkUnitBase* addon) {
         var texts = new List<string>();
         if (addon == null)
             return texts;
@@ -335,11 +285,7 @@ public sealed unsafe partial class Plugin
             .ToList();
     }
 
-    /// <summary>
-    /// Extracts readable option text from generic choice addons using text nodes and AtkValue payloads.
-    /// </summary>
-    private static List<string> ReadGenericChoiceOptions(AtkUnitBase* addon, bool preferFinalPair = false)
-    {
+    private static List<string> ReadGenericChoiceOptions(AtkUnitBase* addon, bool preferFinalPair = false) {
         var texts = new List<string>();
         if (addon == null)
             return texts;
@@ -350,8 +296,7 @@ public sealed unsafe partial class Plugin
         if (texts.Count == 0)
             return texts;
 
-        if (preferFinalPair)
-        {
+        if (preferFinalPair) {
             var shortTexts = texts.Where(text => text.Length <= 80 && !text.Contains('\n')).TakeLast(2).ToList();
             if (shortTexts.Count > 0)
                 return shortTexts;
@@ -362,11 +307,7 @@ public sealed unsafe partial class Plugin
             .ToList();
     }
 
-    /// <summary>
-    /// Recursively collects string values from an addon's AtkValue array with conservative count limits.
-    /// </summary>
-    private static void CollectAtkValueStrings(AtkUnitBase* addon, List<string> texts)
-    {
+    private static void CollectAtkValueStrings(AtkUnitBase* addon, List<string> texts) {
         if (addon == null || addon->AtkValues == null || addon->AtkValuesCount == 0)
             return;
 
@@ -375,38 +316,30 @@ public sealed unsafe partial class Plugin
             CollectAtkValueString(addon->AtkValues + i, texts);
     }
 
-    private static void CollectAtkValueString(AtkValue* value, List<string> texts)
-    {
+    private static void CollectAtkValueString(AtkValue* value, List<string> texts) {
         if (value == null)
             return;
 
-        if (IsStringAtkValueType(value->Type))
-        {
+        if (IsStringAtkValueType(value->Type)) {
             AddText(texts, value->GetValueAsString());
             return;
         }
 
-        if (value->Type is AtkValueType.Vector or AtkValueType.ManagedVector)
-        {
+        if (value->Type is AtkValueType.Vector or AtkValueType.ManagedVector) {
             var count = Math.Min(value->GetVectorSize(), 100u);
             for (var i = 0u; i < count; i++)
                 CollectAtkValueString(value->GetVectorValue(i), texts);
         }
     }
 
-    private static bool IsStringAtkValueType(AtkValueType type)
-    {
+    private static bool IsStringAtkValueType(AtkValueType type) {
         return type is AtkValueType.String
             or AtkValueType.WideString
             or AtkValueType.String8
             or AtkValueType.ManagedString;
     }
 
-    /// <summary>
-    /// Walks an addon node tree and collects unique text node values.
-    /// </summary>
-    private static void CollectTextNodes(AtkResNode* node, List<string> texts)
-    {
+    private static void CollectTextNodes(AtkResNode* node, List<string> texts) {
         if (node == null)
             return;
 
@@ -414,8 +347,7 @@ public sealed unsafe partial class Plugin
             AddText(texts, ((AtkTextNode*)node)->NodeText.AsDalamudSeString().TextValue);
 
         var child = node->ChildNode;
-        while (child != null)
-        {
+        while (child != null) {
             CollectTextNodes(child, texts);
             child = child->PrevSiblingNode;
         }

@@ -2,8 +2,7 @@ using System.Numerics;
 
 namespace CutsceneTranscripts;
 
-public sealed unsafe partial class Plugin
-{
+public sealed unsafe partial class CutsceneTranscripts {
     private const string CommandName = "/cutscenetranscript";
     private const string ShortCommandName = "/cstranscript";
     private const int MaxTranscriptEntries = 250;

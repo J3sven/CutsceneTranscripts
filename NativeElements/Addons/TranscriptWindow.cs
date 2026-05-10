@@ -10,16 +10,11 @@ using KamiToolKit.Premade.Node.Simple;
 
 namespace CutsceneTranscripts;
 
-public sealed unsafe partial class Plugin
-{
-    /// <summary>
-    /// Native KamiToolKit transcript window with game window chrome and native scrolling content.
-    /// </summary>
-    private sealed class TranscriptWindow : NativeAddon
-    {
+public sealed unsafe partial class CutsceneTranscripts {
+    private sealed class TranscriptWindow : NativeAddon {
         private const float ToolbarHeight = 34f;
         private const float BubbleSpacing = 10f;
-        private readonly Plugin plugin;
+        private readonly CutsceneTranscripts plugin;
         private readonly List<TranscriptBubbleNode> transcriptBubbleNodes = [];
         private ScrollingAreaNode<VerticalListNode>? scrollingArea;
         private TextNode? emptyTextNode;
@@ -28,27 +23,20 @@ public sealed unsafe partial class Plugin
         private bool softVisible = true;
         private int renderedRevision = -1;
 
-        public TranscriptWindow(Plugin plugin)
-        {
+        public TranscriptWindow(CutsceneTranscripts plugin) {
             this.plugin = plugin;
         }
 
-        public void MarkDirty()
-        {
+        public void MarkDirty() {
             renderedRevision = -1;
         }
 
         public bool IsShown => IsOpen && !closeRequested && softVisible;
 
-        /// <summary>
-        /// Opens a finalized native addon or reveals one that was hidden without finalizing.
-        /// </summary>
-        public void RequestOpen()
-        {
+        public void RequestOpen() {
             softVisible = true;
             closeRequested = false;
-            if (IsOpen)
-            {
+            if (IsOpen) {
                 ApplySoftVisibility();
                 FocusWindowHeader();
                 MarkDirty();
@@ -58,49 +46,34 @@ public sealed unsafe partial class Plugin
             Open();
         }
 
-        /// <summary>
-        /// Hides the native node tree without asking KTK or the game to finalize the addon.
-        /// </summary>
-        public void RequestSoftHide()
-        {
+        public void RequestSoftHide() {
             softVisible = false;
             ApplySoftVisibility();
         }
 
-        /// <summary>
-        /// Closes the native addon and immediately stops managed refreshes from touching its native nodes.
-        /// </summary>
-        public void RequestClose()
-        {
+        public void RequestClose() {
             closeRequested = true;
             softVisible = false;
             ClearManagedNativeNodeReferences();
             Close();
         }
 
-        /// <summary>
-        /// Rebuilds the native node tree only when transcript state has changed.
-        /// </summary>
-        public void RefreshIfNeeded()
-        {
+        public void RefreshIfNeeded() {
             if (closeRequested || !IsOpen || scrollingArea is null)
                 return;
 
             if (renderedRevision == plugin.transcriptRevision)
                 return;
 
-            try
-            {
+            try {
                 RebuildTranscriptList();
             }
-            catch (NullReferenceException ex) when (IsStaleNativeNodeException(ex))
-            {
+            catch (NullReferenceException ex) when (IsStaleNativeNodeException(ex)) {
                 ClearManagedNativeNodeReferences();
             }
         }
 
-        protected override void OnSetup(AtkUnitBase* addon, Span<AtkValue> atkValueSpan)
-        {
+        protected override void OnSetup(AtkUnitBase* addon, Span<AtkValue> atkValueSpan) {
             base.OnSetup(addon, atkValueSpan);
 
             // Matches VanillaPlus' KTK window setup so ESC follows the game's normal close path.
@@ -117,8 +90,7 @@ public sealed unsafe partial class Plugin
             RefreshIfNeeded();
         }
 
-        protected override void OnShow(AtkUnitBase* addon)
-        {
+        protected override void OnShow(AtkUnitBase* addon) {
             base.OnShow(addon);
             closeRequested = false;
             softVisible = true;
@@ -127,34 +99,29 @@ public sealed unsafe partial class Plugin
             MarkDirty();
         }
 
-        protected override void OnFinalize(AtkUnitBase* addon)
-        {
+        protected override void OnFinalize(AtkUnitBase* addon) {
             closeRequested = true;
             softVisible = false;
             ClearManagedNativeNodeReferences();
             base.OnFinalize(addon);
         }
 
-        protected override void OnUpdate(AtkUnitBase* addon)
-        {
+        protected override void OnUpdate(AtkUnitBase* addon) {
             base.OnUpdate(addon);
             RefreshIfNeeded();
         }
 
-        private void FocusWindowHeader()
-        {
+        private void FocusWindowHeader() {
             if (WindowNode is null)
                 return;
 
             AtkStage.Instance()->AtkInputManager->SetFocus(WindowNode.WindowHeaderFocusNode, this, 0);
         }
 
-        private void BuildToolbar()
-        {
+        private void BuildToolbar() {
             var start = ContentStartPosition;
 
-            var copyButton = new TextButtonNode
-            {
+            var copyButton = new TextButtonNode {
                 Position = start,
                 Size = new Vector2(74f, 28f),
                 String = "Copy",
@@ -162,8 +129,7 @@ public sealed unsafe partial class Plugin
             copyButton.OnClick = () => ImGui.SetClipboardText(plugin.BuildTranscriptText());
             copyButton.AttachNode(this);
 
-            var clearButton = new TextButtonNode
-            {
+            var clearButton = new TextButtonNode {
                 Position = start + new Vector2(82f, 0f),
                 Size = new Vector2(74f, 28f),
                 String = "Clear",
@@ -171,8 +137,7 @@ public sealed unsafe partial class Plugin
             clearButton.OnClick = plugin.ClearTranscript;
             clearButton.AttachNode(this);
 
-            countTextNode = new TextNode
-            {
+            countTextNode = new TextNode {
                 Position = start + new Vector2(168f, 5f),
                 Size = new Vector2(ContentSize.X - 168f, 22f),
                 FontSize = 12,
@@ -183,8 +148,7 @@ public sealed unsafe partial class Plugin
             countTextNode.AttachNode(this);
         }
 
-        private void ApplySoftVisibility()
-        {
+        private void ApplySoftVisibility() {
             if (!IsOpen)
                 return;
 
@@ -206,12 +170,10 @@ public sealed unsafe partial class Plugin
                 scrollingArea.ScrollBarNode.UpdateScrollParams();
         }
 
-        private void BuildScrollingArea()
-        {
+        private void BuildScrollingArea() {
             transcriptBubbleNodes.Clear();
             var start = ContentStartPosition + new Vector2(0f, ToolbarHeight);
-            scrollingArea = new ScrollingAreaNode<VerticalListNode>
-            {
+            scrollingArea = new ScrollingAreaNode<VerticalListNode> {
                 Position = start,
                 Size = new Vector2(ContentSize.X, Math.Max(120f, ContentSize.Y - ToolbarHeight)),
                 ContentHeight = 1f,
@@ -223,8 +185,7 @@ public sealed unsafe partial class Plugin
             scrollingArea.ContentNode.FitContents = true;
             scrollingArea.AttachNode(this);
 
-            emptyTextNode = new TextNode
-            {
+            emptyTextNode = new TextNode {
                 Position = start + new Vector2(8f, 10f),
                 Size = new Vector2(ContentSize.X - 16f, 28f),
                 FontSize = 14,
@@ -236,31 +197,26 @@ public sealed unsafe partial class Plugin
             emptyTextNode.AttachNode(this);
         }
 
-        private void RebuildTranscriptList()
-        {
+        private void RebuildTranscriptList() {
             if (scrollingArea is null)
                 return;
 
             var maxScrollPosition = Math.Max(0, scrollingArea.ContentHeight - scrollingArea.Height);
             var wasNearBottom = scrollingArea.ScrollPosition >= maxScrollPosition - 12;
             var contentWidth = Math.Max(280f, scrollingArea.ContentNode.Width - 4f);
-            while (transcriptBubbleNodes.Count < plugin.entries.Count)
-            {
+            while (transcriptBubbleNodes.Count < plugin.entries.Count) {
                 var node = new TranscriptBubbleNode(plugin, transcriptBubbleNodes.Count, plugin.entries[transcriptBubbleNodes.Count], contentWidth);
                 transcriptBubbleNodes.Add(node);
                 scrollingArea.ContentNode.AddNode(node);
             }
 
-            for (var i = 0; i < transcriptBubbleNodes.Count; i++)
-            {
+            for (var i = 0; i < transcriptBubbleNodes.Count; i++) {
                 var node = transcriptBubbleNodes[i];
-                if (i < plugin.entries.Count)
-                {
+                if (i < plugin.entries.Count) {
                     node.IsVisible = true;
                     node.UpdateEntry(i, plugin.entries[i], contentWidth);
                 }
-                else
-                {
+                else {
                     node.IsVisible = false;
                 }
             }
@@ -280,11 +236,7 @@ public sealed unsafe partial class Plugin
             renderedRevision = plugin.transcriptRevision;
         }
 
-        /// <summary>
-        /// Drops managed references after KTK has finalized the native nodes they point at.
-        /// </summary>
-        private void ClearManagedNativeNodeReferences()
-        {
+        private void ClearManagedNativeNodeReferences() {
             scrollingArea = null;
             emptyTextNode = null;
             countTextNode = null;
@@ -292,17 +244,12 @@ public sealed unsafe partial class Plugin
             renderedRevision = -1;
         }
 
-        private static bool IsStaleNativeNodeException(NullReferenceException ex)
-        {
+        private static bool IsStaleNativeNodeException(NullReferenceException ex) {
             return ex.StackTrace?.Contains("KamiToolKit.Nodes.ComponentNode", StringComparison.Ordinal) == true;
         }
     }
 
-    /// <summary>
-    /// One native transcript bubble that preserves the original plugin's soft dialogue-card style.
-    /// </summary>
-    private sealed class TranscriptBubbleNode : ResNode
-    {
+    private sealed class TranscriptBubbleNode : ResNode {
         private const float PaddingX = 18f;
         private const float PaddingY = 14f;
         private const float SpeakerOverlap = 10f;
@@ -310,7 +257,7 @@ public sealed unsafe partial class Plugin
         private const float SpeakerShadowOffsetY = 2f;
         private const float SpeakerShadowHeight = 22f;
         private const float SpeakerShadowPaddingX = 26f;
-        private readonly Plugin plugin;
+        private readonly CutsceneTranscripts plugin;
         private readonly BackgroundImageNode shadowNode;
         private readonly BackgroundImageNode bubbleNode;
         private readonly BackgroundImageNode highlightNode;
@@ -324,8 +271,7 @@ public sealed unsafe partial class Plugin
         private CircleButtonNode? replayButtonNode;
         private TranscriptEntry entry;
 
-        public TranscriptBubbleNode(Plugin plugin, int index, TranscriptEntry entry, float width)
-        {
+        public TranscriptBubbleNode(CutsceneTranscripts plugin, int index, TranscriptEntry entry, float width) {
             this.plugin = plugin;
             this.entry = entry;
 
@@ -354,8 +300,7 @@ public sealed unsafe partial class Plugin
             rightBorderNode = CreateSolidNode(DialogueBoxBorder);
             rightBorderNode.AttachNode(this);
 
-            bodyTextNode = new TextNode
-            {
+            bodyTextNode = new TextNode {
                 FontSize = 14,
                 LineSpacing = 18,
                 TextFlags = TextFlags.WordWrap | TextFlags.MultiLine,
@@ -365,13 +310,11 @@ public sealed unsafe partial class Plugin
             };
             bodyTextNode.AttachNode(this);
 
-            if (!string.IsNullOrWhiteSpace(entry.Speaker))
-            {
+            if (!string.IsNullOrWhiteSpace(entry.Speaker)) {
                 speakerShadowNode = CreateSpeakerLabelPlate();
                 speakerShadowNode.AttachNode(this);
 
-                speakerTextNode = new TextNode
-                {
+                speakerTextNode = new TextNode {
                     FontSize = 14,
                     LineSpacing = 18,
                     TextFlags = TextFlags.Emboss,
@@ -382,8 +325,7 @@ public sealed unsafe partial class Plugin
                 speakerTextNode.AttachNode(this);
             }
 
-            if (entry.VoiceClip is { } voiceClip)
-            {
+            if (entry.VoiceClip is { } voiceClip) {
                 replayButtonNode = CreateReplayButton();
                 replayButtonNode.AttachNode(this);
                 UpdateReplayButton(voiceClip);
@@ -394,47 +336,36 @@ public sealed unsafe partial class Plugin
 
         public long EntryId => entry.Id;
 
-        /// <summary>
-        /// Refreshes mutable line state while keeping the same native node tree alive.
-        /// </summary>
-        public void UpdateEntry(int index, TranscriptEntry newEntry, float width)
-        {
+        public void UpdateEntry(int index, TranscriptEntry newEntry, float width) {
             entry = newEntry;
             bodyTextNode.String = newEntry.Text;
 
             if (speakerTextNode is not null)
                 speakerTextNode.String = newEntry.Speaker ?? string.Empty;
 
-            if (newEntry.VoiceClip is { } voiceClip)
-            {
-                if (replayButtonNode is null)
-                {
+            if (newEntry.VoiceClip is { } voiceClip) {
+                if (replayButtonNode is null) {
                     replayButtonNode = CreateReplayButton();
                     replayButtonNode.AttachNode(this);
                 }
 
                 UpdateReplayButton(voiceClip);
             }
-            else if (replayButtonNode is not null)
-            {
+            else if (replayButtonNode is not null) {
                 replayButtonNode.IsVisible = false;
             }
 
             UpdateLayout(index, width);
         }
 
-        private static BackgroundImageNode CreateSolidNode(Vector4 color)
-        {
-            return new BackgroundImageNode
-            {
+        private static BackgroundImageNode CreateSolidNode(Vector4 color) {
+            return new BackgroundImageNode {
                 Color = color,
             };
         }
 
-        private static SimpleNineGridNode CreateSpeakerLabelPlate()
-        {
-            return new SimpleNineGridNode
-            {
+        private static SimpleNineGridNode CreateSpeakerLabelPlate() {
+            return new SimpleNineGridNode {
                 TexturePath = "ui/uld/ToolTipS.tex",
                 TextureCoordinates = Vector2.Zero,
                 TextureSize = new Vector2(32f, 24f),
@@ -446,21 +377,17 @@ public sealed unsafe partial class Plugin
             };
         }
 
-        private CircleButtonNode CreateReplayButton()
-        {
-            return new CircleButtonNode
-            {
+        private CircleButtonNode CreateReplayButton() {
+            return new CircleButtonNode {
                 Size = new Vector2(28f, 28f),
-                OnClick = () =>
-                {
+                OnClick = () => {
                     if (entry.VoiceClip is { } currentVoiceClip && currentVoiceClip.CanReplay)
                         plugin.ToggleVoiceClipReplay(currentVoiceClip);
                 },
             };
         }
 
-        private void UpdateReplayButton(VoiceClipRef voiceClip)
-        {
+        private void UpdateReplayButton(VoiceClipRef voiceClip) {
             if (replayButtonNode is null)
                 return;
 
@@ -475,8 +402,7 @@ public sealed unsafe partial class Plugin
             replayButtonNode.Alpha = voiceClip.CanReplay ? 1f : 0.58f;
         }
 
-        private void UpdateLayout(int index, float width)
-        {
+        private void UpdateLayout(int index, float width) {
             var speakerHeight = string.IsNullOrWhiteSpace(entry.Speaker)
                 ? 0f
                 : bodyTextNode.LineSpacing + 2f;
@@ -508,15 +434,13 @@ public sealed unsafe partial class Plugin
             bodyTextNode.Position = new Vector2(PaddingX + 4f, boxY + PaddingY);
             bodyTextNode.Size = new Vector2(textWidth, textHeight + 4f);
 
-            if (speakerTextNode is not null && !string.IsNullOrWhiteSpace(entry.Speaker))
-            {
+            if (speakerTextNode is not null && !string.IsNullOrWhiteSpace(entry.Speaker)) {
                 var speakerX = 24f;
                 var speakerY = Math.Max(0f, boxY - 10f);
                 speakerTextNode.Size = new Vector2(width - speakerX * 2f, 22f);
                 var speakerTextWidth = Math.Max(1f, speakerTextNode.GetTextDrawSize(false).X);
                 var speakerWidth = Math.Max(58f, speakerTextWidth + SpeakerShadowPaddingX);
-                if (speakerShadowNode is not null)
-                {
+                if (speakerShadowNode is not null) {
                     speakerShadowNode.Position = new Vector2(speakerX - SpeakerShadowInsetX, speakerY - SpeakerShadowOffsetY);
                     speakerShadowNode.Size = new Vector2(speakerWidth, SpeakerShadowHeight);
                 }
@@ -524,8 +448,7 @@ public sealed unsafe partial class Plugin
                 speakerTextNode.Position = new Vector2(speakerX, speakerY);
             }
 
-            if (replayButtonNode is not null)
-            {
+            if (replayButtonNode is not null) {
                 replayButtonNode.Position = new Vector2(width - PaddingX - replayButtonNode.Width, boxY + boxHeight - replayButtonNode.Height * 0.5f);
             }
         }
