@@ -8,6 +8,16 @@ namespace CutsceneTranscripts;
 
 public sealed unsafe partial class CutsceneTranscripts {
     private void OnTalkPostUpdate(AddonEvent eventType, AddonArgs args) {
+        try {
+            OnTalkPostUpdateUnsafe(args);
+        }
+        catch (Exception ex) {
+            talkWindowBounds = null;
+            Services.PluginLog.Warning(ex, "Failed to process Talk addon {EventType}.", eventType);
+        }
+    }
+
+    private void OnTalkPostUpdateUnsafe(AddonArgs args) {
         if (args.Addon.IsNull || !args.Addon.IsVisible) {
             talkWindowBounds = null;
             return;
@@ -25,8 +35,13 @@ public sealed unsafe partial class CutsceneTranscripts {
     }
 
     private void OnTalkFinalize(AddonEvent eventType, AddonArgs args) {
-        lastObservedTalkKey = null;
-        talkWindowBounds = null;
+        try {
+            lastObservedTalkKey = null;
+            talkWindowBounds = null;
+        }
+        catch (Exception ex) {
+            Services.PluginLog.Warning(ex, "Failed to finalize Talk addon state.");
+        }
     }
 
     private void UpdateTalkWindowBounds(AddonTalk* addon) {

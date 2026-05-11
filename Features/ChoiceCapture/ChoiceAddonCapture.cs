@@ -8,12 +8,24 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 namespace CutsceneTranscripts;
 
 public sealed unsafe partial class CutsceneTranscripts {
+    private const int MaxChoiceTextNodeDepth = 32;
+    private const int MaxChoiceTextNodes = 256;
+
     private bool IsChoiceAddonVisible() {
         var now = DateTimeOffset.Now;
         return choiceStates.Values.Any(state => now - state.LastSeenAt <= VisibleAddonGracePeriod);
     }
 
     private void OnChoicePostUpdate(AddonEvent eventType, AddonArgs args) {
+        try {
+            OnChoicePostUpdateUnsafe(args);
+        }
+        catch (Exception ex) {
+            Services.PluginLog.Warning(ex, "Failed to process choice addon {AddonName} {EventType}.", args.AddonName, eventType);
+        }
+    }
+
+    private void OnChoicePostUpdateUnsafe(AddonArgs args) {
         if (args.Addon.IsNull) {
             return;
         }
@@ -26,6 +38,15 @@ public sealed unsafe partial class CutsceneTranscripts {
     }
 
     private void OnChoiceReceiveEvent(AddonEvent eventType, AddonArgs args) {
+        try {
+            OnChoiceReceiveEventUnsafe(eventType, args);
+        }
+        catch (Exception ex) {
+            Services.PluginLog.Warning(ex, "Failed to process choice addon event {AddonName} {EventType}.", args.AddonName, eventType);
+        }
+    }
+
+    private void OnChoiceReceiveEventUnsafe(AddonEvent eventType, AddonArgs args) {
         if (args.Addon.IsNull) {
             return;
         }
@@ -51,6 +72,15 @@ public sealed unsafe partial class CutsceneTranscripts {
     }
 
     private void OnChoiceFinalize(AddonEvent eventType, AddonArgs args) {
+        try {
+            OnChoiceFinalizeUnsafe(args);
+        }
+        catch (Exception ex) {
+            Services.PluginLog.Warning(ex, "Failed to finalize choice addon {AddonName} {EventType}.", args.AddonName, eventType);
+        }
+    }
+
+    private void OnChoiceFinalizeUnsafe(AddonArgs args) {
         if (args.Addon.IsNull) {
             return;
         }
@@ -226,12 +256,22 @@ public sealed unsafe partial class CutsceneTranscripts {
         if (addon == null)
             return -1;
 
-        return ReadGenericSelectedIndex(addon->RootNode);
+        var visited = new HashSet<nint>();
+        var remainingNodes = MaxChoiceTextNodes;
+        return ReadGenericSelectedIndex(addon->RootNode, visited, 0, ref remainingNodes);
     }
 
-    private static int ReadGenericSelectedIndex(AtkResNode* node) {
+    private static int ReadGenericSelectedIndex(AtkResNode* node, HashSet<nint> visited, int depth, ref int remainingNodes) {
         if (node == null)
             return -1;
+
+        if (depth > MaxChoiceTextNodeDepth || remainingNodes <= 0)
+            return -1;
+
+        if (!visited.Add((nint)node))
+            return -1;
+
+        remainingNodes--;
 
         if (node->Type == NodeType.Component) {
             var list = ((AtkComponentNode*)node)->GetAsAtkComponentList();
@@ -241,12 +281,16 @@ public sealed unsafe partial class CutsceneTranscripts {
         }
 
         var child = node->ChildNode;
-        while (child != null) {
-            var selected = ReadGenericSelectedIndex(child);
+        while (child != null && remainingNodes > 0) {
+            if (visited.Contains((nint)child))
+                break;
+
+            var next = child->PrevSiblingNode;
+            var selected = ReadGenericSelectedIndex(child, visited, depth + 1, ref remainingNodes);
             if (selected >= 0)
                 return selected;
 
-            child = child->PrevSiblingNode;
+            child = next;
         }
 
         return -1;
@@ -340,16 +384,34 @@ public sealed unsafe partial class CutsceneTranscripts {
     }
 
     private static void CollectTextNodes(AtkResNode* node, List<string> texts) {
+        var visited = new HashSet<nint>();
+        var remainingNodes = MaxChoiceTextNodes;
+        CollectTextNodes(node, texts, visited, 0, ref remainingNodes);
+    }
+
+    private static void CollectTextNodes(AtkResNode* node, List<string> texts, HashSet<nint> visited, int depth, ref int remainingNodes) {
         if (node == null)
             return;
+
+        if (depth > MaxChoiceTextNodeDepth || remainingNodes <= 0)
+            return;
+
+        if (!visited.Add((nint)node))
+            return;
+
+        remainingNodes--;
 
         if (node->Type == NodeType.Text)
             AddText(texts, ((AtkTextNode*)node)->NodeText.AsDalamudSeString().TextValue);
 
         var child = node->ChildNode;
-        while (child != null) {
-            CollectTextNodes(child, texts);
-            child = child->PrevSiblingNode;
+        while (child != null && remainingNodes > 0) {
+            if (visited.Contains((nint)child))
+                break;
+
+            var next = child->PrevSiblingNode;
+            CollectTextNodes(child, texts, visited, depth + 1, ref remainingNodes);
+            child = next;
         }
     }
 }

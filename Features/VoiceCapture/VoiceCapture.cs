@@ -5,7 +5,9 @@ namespace CutsceneTranscripts;
 public sealed unsafe partial class CutsceneTranscripts {
     private const float VoiceAttachMaxElapsedSeconds = 0.75f;
     private SoundData* activeReplaySoundData;
-    private VoiceClipRef? activeReplayVoiceClip; private void StartVoiceCaptureProbe(int entryIndex, IReadOnlyList<VoiceSoundCandidate> initialCandidates) {
+    private VoiceClipRef? activeReplayVoiceClip;
+
+    private void StartVoiceCaptureProbe(int entryIndex, IReadOnlyList<VoiceSoundCandidate> initialCandidates) {
         var now = DateTimeOffset.Now;
         voiceCaptureProbes.Add(new VoiceCaptureProbe {
             EntryIndex = entryIndex,
@@ -150,19 +152,35 @@ public sealed unsafe partial class CutsceneTranscripts {
     }
 
     internal bool IsVoiceClipReplayActive(VoiceClipRef voiceClip) {
-        return activeReplayVoiceClip == voiceClip && TryGetActiveReplaySoundData(out var soundData) && soundData->IsPlaying();
+        try {
+            return activeReplayVoiceClip == voiceClip && TryGetActiveReplaySoundData(out var soundData) && soundData->IsPlaying();
+        }
+        catch (Exception ex) {
+            Services.PluginLog.Warning(ex, "Failed to read replayed voice clip state.");
+            activeReplaySoundData = null;
+            activeReplayVoiceClip = null;
+            return false;
+        }
     }
 
     private void RefreshActiveVoiceReplayState() {
-        if (activeReplaySoundData == null)
-            return;
+        try {
+            if (activeReplaySoundData == null)
+                return;
 
-        if (TryGetActiveReplaySoundData(out var soundData) && soundData->IsPlaying())
-            return;
+            if (TryGetActiveReplaySoundData(out var soundData) && soundData->IsPlaying())
+                return;
 
-        activeReplaySoundData = null;
-        activeReplayVoiceClip = null;
-        MarkTranscriptChanged();
+            activeReplaySoundData = null;
+            activeReplayVoiceClip = null;
+            MarkTranscriptChanged();
+        }
+        catch (Exception ex) {
+            Services.PluginLog.Warning(ex, "Failed to refresh replayed voice clip state.");
+            activeReplaySoundData = null;
+            activeReplayVoiceClip = null;
+            MarkTranscriptChanged();
+        }
     }
 
     private bool TryGetActiveReplaySoundData(out SoundData* soundData) {
@@ -201,22 +219,28 @@ public sealed unsafe partial class CutsceneTranscripts {
     }
 
     private void ProcessVoiceCaptureProbes() {
-        if (voiceCaptureProbes.Count == 0)
-            return;
+        try {
+            if (voiceCaptureProbes.Count == 0)
+                return;
 
-        var now = DateTimeOffset.Now;
-        for (var i = voiceCaptureProbes.Count - 1; i >= 0; i--) {
-            var probe = voiceCaptureProbes[i];
-            if (now > probe.EndsAt) {
-                voiceCaptureProbes.RemoveAt(i);
-                continue;
+            var now = DateTimeOffset.Now;
+            for (var i = voiceCaptureProbes.Count - 1; i >= 0; i--) {
+                var probe = voiceCaptureProbes[i];
+                if (now > probe.EndsAt) {
+                    voiceCaptureProbes.RemoveAt(i);
+                    continue;
+                }
+
+                if (now < probe.NextSampleAt)
+                    continue;
+
+                TryAttachVoiceClipFromSample(probe, ReadActiveSoundCandidates());
+                probe.NextSampleAt = now + TimeSpan.FromMilliseconds(250);
             }
-
-            if (now < probe.NextSampleAt)
-                continue;
-
-            TryAttachVoiceClipFromSample(probe, ReadActiveSoundCandidates());
-            probe.NextSampleAt = now + TimeSpan.FromMilliseconds(250);
+        }
+        catch (Exception ex) {
+            Services.PluginLog.Warning(ex, "Failed to process voice capture probes.");
+            voiceCaptureProbes.Clear();
         }
     }
 
@@ -260,8 +284,14 @@ public sealed unsafe partial class CutsceneTranscripts {
             if (!visited.Add(address))
                 break;
 
-            TryAddSoundCandidate(current, candidates);
-            current = (SoundData*)current->Next;
+            try {
+                TryAddSoundCandidate(current, candidates);
+                current = (SoundData*)current->Next;
+            }
+            catch (Exception ex) {
+                Services.PluginLog.Warning(ex, "Failed to read active sound candidate.");
+                break;
+            }
         }
 
         return candidates
